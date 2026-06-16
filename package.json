@@ -13,6 +13,7 @@
     "express": "^4.18.1",
     "minecraft-data": "latest",
     "mineflayer": "latest",
-    "mineflayer-pathfinder": "latest"
+    "mineflayer-pathfinder": "latest",
+    "socket.io": "^4.5.1"
   }
 }
