@@ -4,6 +4,9 @@ const http = require("http").createServer(app);
 const io = require("socket.io")(http);
 const config = require("./settings.json");
 const mineflayer = require("mineflayer");
+const { pathfinder, Movements, goals } = require("mineflayer-pathfinder");
+const logger = require("./logger");
+const leaveRejoin = require("./leaveRejoin");
 
 app.use(express.static("public"));
 
@@ -26,14 +29,18 @@ function createBot() {
   botStatus = "Connecting...";
   io.emit("status", botStatus);
 
-  // هنا فين تلبات النسخة 1.21 بزز باش ما يعاودش يعطيك خطأ الـ Logs
+  // هنا فين تفرض الـ 1.21 من الـ settings أولا بزز يلا لقاها خاوية
+  const botVersion = config.server.version && config.server.version !== "" ? config.server.version : "1.21";
+
   bot = mineflayer.createBot({
     host: config.server.ip,
-    port: parseInt(config.server.port),
-    username: config["bot-account"].username,
-    version: "1.21", 
+    port: parseInt(config.server.port) || 25565,
+    username: config["bot-account"].username || "Slobot00",
+    version: botVersion,
     auth: "offline"
   });
+
+  bot.loadPlugin(pathfinder);
 
   bot.on("login", () => {
     botStatus = "Logging in...";
@@ -44,6 +51,16 @@ function createBot() {
     botStatus = "Connected";
     io.emit("status", botStatus);
     log(`[Bot] Spawning successfully at ${config.server.ip}`);
+    
+    // تشغيل نظام الـ Anti-AFK لي عندك ف السكريبت
+    if (config.utils && config.utils["anti-afk"] && config.utils["anti-afk"].enabled) {
+      setInterval(() => {
+        if (bot.entity) {
+          bot.setControlState("jump", true);
+          setTimeout(() => bot.setControlState("jump", false), 500);
+        }
+      }, 15000);
+    }
   });
 
   bot.on("chat", (username, message) => {
@@ -58,7 +75,7 @@ function createBot() {
     botStatus = "Disconnected";
     io.emit("status", botStatus);
     log(`[Disconnect] Bot disconnected: ${reason}`);
-    setTimeout(createBot, 5000);
+    setTimeout(createBot, config.utils["auto-reconnect-delay"] || 5000);
   });
 }
 
@@ -68,6 +85,7 @@ function log(msg) {
   chatLogs.push(formattedMsg);
   if (chatLogs.length > 100) chatLogs.shift();
   io.emit("log", formattedMsg);
+  logger.info(msg);
 }
 
 io.on("connection", (socket) => {
